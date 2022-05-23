@@ -20,7 +20,15 @@ async function run() {
     try {
         await client.connect();
         console.log('Mongo db is connected')
+        const toolCollection = client.db('tools_manufacturer').collection('tools')
+        // for homepage to load services
+        app.get('/tool', async (req, res) => {
+            const query = {};
+            const cursor = toolCollection.find(query);
+            const tools = await cursor.toArray();
+            res.send(tools);
 
+        })
     }
 
     finally{
