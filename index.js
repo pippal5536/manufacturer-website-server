@@ -38,6 +38,8 @@ async function run() {
         const collectionOfTools = client.db('tools_manufacturer').collection('tools')
         const collectionOfUsers = client.db('tools_manufacturer').collection('users');
         const collectionOfPurchasedTools = client.db('tools_manufacturer').collection('purchased-tools');
+        const collectionOfReviews = client.db('tools_manufacturer').collection('reviews');
+        const collectionOfPayment = client.db('tools_manufacturer').collection('payment');
 
         // to load tools in homepage
         app.get('/tool', async (req, res) => {
@@ -90,12 +92,61 @@ async function run() {
         })
 
         // to delete orders
-        app.delete('/purchase/:id',  async (req, res) => {
+        app.delete('/purchase/:id', async (req, res) => {
             const id = req.params.id;
             const query = { _id: ObjectId(id) };
             const result = await collectionOfPurchasedTools.deleteOne(query);
             res.send(result);
         })
+        // to post review
+        app.post('/review', async (req, res) => {
+            const review = req.body;
+            const result = await collectionOfReviews.insertOne(review);
+            res.send(result);
+        });
+        // load reviews in homepage
+        app.get('/review', async (req, res) => {
+            const query = {};
+            const cursor = collectionOfReviews.find(query);
+            const reviews = await cursor.toArray();
+            res.send(reviews);
+
+        })
+        // for payment page
+        app.get('/purchase/:id', verifyJWT, async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: ObjectId(id) };
+            const purchase = await collectionOfPurchasedTools.findOne(query);
+            res.send(purchase);
+        })
+         // payment-intent
+         app.post('/payment-intent', verifyJWT, async (req, res) => {
+            const tool = req.body;
+            const price = tool.price;
+            const amount = price * 100;
+            const paymentIntent = await stripe.paymentIntents.create({
+                amount: amount,
+                currency: 'usd',
+                payment_method_types: ['card']
+            });
+            res.send({ clientSecret: paymentIntent.client_secret })
+        });
+        // store payment in databse
+        app.patch('/purchase/:id', verifyJWT, async(req, res) =>{
+            const id  = req.params.id;
+            const payment = req.body;
+            const filter = {_id: ObjectId(id)};
+            const updatedDoc = {
+              $set: {
+                paid: true,
+                transactionId: payment.transactionId
+              }
+            }
+            const result = await collectionOfPayment.insertOne(payment);
+            const updatedBooking = await collectionOfPurchasedTools.updateOne(filter, updatedDoc);
+            res.send(updatedBooking);
+          })
+       
     }
 
     finally {
