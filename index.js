@@ -40,6 +40,7 @@ async function run() {
         const collectionOfPurchasedTools = client.db('tools_manufacturer').collection('purchased-tools');
         const collectionOfReviews = client.db('tools_manufacturer').collection('reviews');
         const collectionOfPayment = client.db('tools_manufacturer').collection('payment');
+        const collectionOfUserProfile = client.db('tools_manufacturer').collection('user-profiles');
 
         // to load tools in homepage
         app.get('/tool', async (req, res) => {
@@ -146,6 +147,21 @@ async function run() {
             const updatedBooking = await collectionOfPurchasedTools.updateOne(filter, updatedDoc);
             res.send(updatedBooking);
           })
+
+          // for my profile page to upload user information
+          app.put('/userProfile', async (req, res) => {
+
+            const email = req.params.email;
+            const user = req.body;
+            const filter = { email: email };
+            const options = { upsert: true };
+            const updateDoc = {
+                $set: user,
+            };
+            const result = await collectionOfUserProfile.updateOne(filter, updateDoc, options);
+            const token = jwt.sign({ email: email }, process.env.ACCESS_TOKEN_SECRET)
+            res.send({ result, token });
+        })
        
     }
 
