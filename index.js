@@ -42,6 +42,17 @@ async function run() {
         const collectionOfPayment = client.db('tools_manufacturer').collection('payment');
         const collectionOfUserProfile = client.db('tools_manufacturer').collection('user-profiles');
 
+        const verifyAdmin = async (req, res, next) => {
+            const requester = req.decoded.email;
+            const requesterAccount = await collectionOfUsers.findOne({ email: requester });
+            if (requesterAccount.role === 'admin') {
+                next();
+            }
+            else {
+                res.status(403).send({ message: 'forbidden' });
+            }
+        }
+
         // to load tools in homepage
         app.get('/tool', async (req, res) => {
             const query = {};
@@ -120,8 +131,8 @@ async function run() {
             const purchase = await collectionOfPurchasedTools.findOne(query);
             res.send(purchase);
         })
-         // create-payment-intent
-         app.post('/create-payment-intent', verifyJWT, async (req, res) => {
+        // create-payment-intent
+        app.post('/create-payment-intent', verifyJWT, async (req, res) => {
             const order = req.body;
             const price = order.price;
             const amount = price * 100;
@@ -133,23 +144,23 @@ async function run() {
             res.send({ clientSecret: paymentIntent.client_secret })
         });
         // store payment in databse
-        app.patch('/purchase/:id', verifyJWT, async(req, res) =>{
-            const id  = req.params.id;
+        app.patch('/purchase/:id', verifyJWT, async (req, res) => {
+            const id = req.params.id;
             const payment = req.body;
-            const filter = {_id: ObjectId(id)};
+            const filter = { _id: ObjectId(id) };
             const updatedDoc = {
-              $set: {
-                paid: true,
-                transactionId: payment.transactionId
-              }
+                $set: {
+                    paid: true,
+                    transactionId: payment.transactionId
+                }
             }
             const result = await collectionOfPayment.insertOne(payment);
             const updatedBooking = await collectionOfPurchasedTools.updateOne(filter, updatedDoc);
             res.send(updatedBooking);
-          })
+        })
 
-          // for my profile page to upload user information
-          app.put('/userProfile', async (req, res) => {
+        // for my profile page to upload user information
+        app.put('/userProfile', async (req, res) => {
 
             const email = req.params.email;
             const user = req.body;
@@ -162,7 +173,62 @@ async function run() {
             const token = jwt.sign({ email: email }, process.env.ACCESS_TOKEN_SECRET)
             res.send({ result, token });
         })
-       
+
+        // for use Admin hook
+        app.get('/admin/:email', async (req, res) => {
+            const email = req.params.email;
+            const user = await collectionOfUsers.findOne({ email: email });
+            const determineAdmin = user.role === 'admin';
+            res.send({ admin: determineAdmin })
+        })
+        // to load all users
+        app.get('/user', verifyJWT, async (req, res) => {
+            const users = await collectionOfUsers.find().toArray();
+            res.send(users);
+        });
+        // to make another user Admin
+        app.put('/user/admin/:email', verifyJWT, verifyAdmin, async (req, res) => {
+            const email = req.params.email;
+            const filter = { email: email };
+            const updateDoc = {
+                $set: { role: "admin" },
+            };
+            const result = await collectionOfUsers.updateOne(filter, updateDoc);
+            res.send(result);
+        })
+        // to add tool in homepage by admin
+        app.post('/tool', async (req, res) => {
+            const tool = req.body;
+            const result = await collectionOfTools.insertOne(tool);
+            res.send(result);
+        });
+        // to load all orders in manage all orders page
+        app.get('/allorders',verifyJWT,verifyAdmin, async (req, res) => {
+            const query = {};
+            const cursor = collectionOfPurchasedTools.find(query);
+            const orders = await cursor.toArray();
+            res.send(orders);
+
+        })
+        // change status to shipped
+        app.patch('/allorders/:id', verifyJWT,verifyAdmin, async (req, res) => {
+            const id = req.params.id;
+            const filter = { _id: ObjectId(id) };
+            const updatedDoc = {
+                $set: {
+                    approved: true,
+                }
+            }
+            const updatedBooking = await collectionOfPurchasedTools.updateOne(filter, updatedDoc);
+            res.send(updatedBooking);
+        })
+        // delete tool
+        app.delete('/tool/:id', async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: ObjectId(id) };
+            const result = await collectionOfTools.deleteOne(query);
+            res.send(result);
+        })
     }
 
     finally {
