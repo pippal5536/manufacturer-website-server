@@ -40,7 +40,6 @@ async function run() {
         const collectionOfPurchasedTools = client.db('tools_manufacturer').collection('purchased-tools');
         const collectionOfReviews = client.db('tools_manufacturer').collection('reviews');
         const collectionOfPayment = client.db('tools_manufacturer').collection('payment');
-        const collectionOfUserProfile = client.db('tools_manufacturer').collection('user-profiles');
 
         const verifyAdmin = async (req, res, next) => {
             const requester = req.decoded.email;
@@ -61,7 +60,7 @@ async function run() {
             res.send(tools);
 
         })
-        // to load selected tool in purchase page
+        // to load selected tool in purchase page , also for useToken
         app.get('/tool/:id', async (req, res) => {
             const id = req.params.id;
             const query = { _id: ObjectId(id) };
@@ -160,26 +159,32 @@ async function run() {
         })
 
         // for my profile page to upload user information
-        app.put('/userProfile', async (req, res) => {
-
+        app.put('/userProfile/:email',  async (req, res) => {
             const email = req.params.email;
-            const user = req.body;
-            const filter = { email: email };
-            const options = { upsert: true };
+            const education = req.body;
+            const location = req.body;
+            const phone = req.body;
+            const linkedInProfile = req.body;
+             const filter = { email: email };
             const updateDoc = {
-                $set: user,
+                $set: { 
+                education: education.education,
+                location:location.location,
+                phone:phone.phone,
+                linkedInProfile:linkedInProfile.linkedInProfile
+
+            },
             };
-            const result = await collectionOfUserProfile.updateOne(filter, updateDoc, options);
-            const token = jwt.sign({ email: email }, process.env.ACCESS_TOKEN_SECRET)
-            res.send({ result, token });
+            const result = await collectionOfUsers.updateOne(filter, updateDoc);
+            res.send(result);
         })
 
         // for use Admin hook
         app.get('/admin/:email', async (req, res) => {
             const email = req.params.email;
             const user = await collectionOfUsers.findOne({ email: email });
-            const determineAdmin = user.role === 'admin';
-            res.send({ admin: determineAdmin })
+            const isAdmin = user.role === 'admin';
+            res.send({ admin: isAdmin })
         })
         // to load all users
         app.get('/user', verifyJWT, async (req, res) => {
